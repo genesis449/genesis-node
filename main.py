@@ -3,12 +3,13 @@ import json
 import base64
 import urllib.request
 import urllib.parse
+import random
 from datetime import datetime
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="Genesis_Node API", version="4.0.0")
+app = FastAPI(title="Genesis_Node API", version="5.0.0")
 
 ADMIN_SECRET_KEY = "genesis_master_2026"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
@@ -22,17 +23,20 @@ class SovereignKernel:
         self.security_log_file = "security_logs.json"
         self.banned_words_file = "banned_words.json"
         self.peers_file = "peers.json"
+        self.neural_matrix_file = "neural_matrix.json"
         
         self.chat_history = []
         self.security_logs = []
         self.banned_words = []
-        self.peers = [] # Autres nœuds connectés pour la décentralisation
+        self.peers = []
+        self.neural_matrix = {} # Nouvelle matrice neuronale locale pour la génération de texte
         
         self.load_memory()
         self.load_chat_history()
         self.load_security_logs()
         self.load_banned_words()
         self.load_peers()
+        self.load_neural_matrix()
 
     def load_memory(self):
         if os.path.exists(self.memory_file):
@@ -103,6 +107,47 @@ class SovereignKernel:
             with open(self.peers_file, "w", encoding="utf-8") as f:
                 json.dump(self.peers, f, indent=4, ensure_ascii=False)
 
+    def load_neural_matrix(self):
+        if os.path.exists(self.neural_matrix_file):
+            try:
+                with open(self.neural_matrix_file, "r", encoding="utf-8") as f:
+                    self.neural_matrix = json.load(f)
+            except:
+                self.neural_matrix = {}
+        else:
+            self.neural_matrix = {}
+
+    def save_neural_matrix(self):
+        with open(self.neural_matrix_file, "w", encoding="utf-8") as f:
+            json.dump(self.neural_matrix, f, indent=4, ensure_ascii=False)
+
+    def train_neural_matrix(self, text):
+        """Apprend la structure des mots pour générer du texte de manière autonome (style Markov local)"""
+        words = text.split()
+        for i in range(len(words) - 1):
+            w1 = words[i].lower()
+            w2 = words[i+1]
+            if w1 not in self.neural_matrix:
+                self.neural_matrix[w1] = []
+            if w2 not in self.neural_matrix[w1]:
+                self.neural_matrix[w1].append(w2)
+        self.save_neural_matrix()
+
+    def generate_neural_text(self, start_word, max_length=15):
+        """Génère une phrase complète de manière neuronale locale"""
+        current = start_word.lower()
+        result = [start_word]
+        for _ in range(max_length):
+            if current in self.neural_matrix and self.neural_matrix[current]:
+                next_word = random.choice(self.neural_matrix[current])
+                result.append(next_word)
+                current = next_word.lower()
+            else:
+                break
+        if len(result) > 1:
+            return " ".join(result)
+        return None
+
     def auto_sync_github(self, filepath):
         if not GITHUB_TOKEN or not GITHUB_REPO:
             return
@@ -118,7 +163,7 @@ class SovereignKernel:
                     sha = json.loads(response.read().decode()).get("sha", "")
             except:
                 pass
-            payload = {"message": f"Sync décentralisé : {filepath}", "content": encoded_content, "sha": sha}
+            payload = {"message": f"Sync V5.0 : {filepath}", "content": encoded_content, "sha": sha}
             req_put = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers={"Authorization": f"token {GITHUB_TOKEN}", "User-Agent": "Genesis-Node", "Content-Type": "application/json"}, method="PUT")
             urllib.request.urlopen(req_put)
         except Exception as e:
@@ -132,6 +177,7 @@ class SovereignKernel:
             "learned_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         self.save_memory_to_disk()
+        self.train_neural_matrix(description) # Entraînement automatique de la matrice neuronale
 
     def delete_from_memory(self, item):
         clean_key = item.strip().lower()
@@ -142,7 +188,6 @@ class SovereignKernel:
         return False
 
     def semantic_search(self, query):
-        """Moteur de similarité textuelle local (RAG Maison) : calcule les correspondances de mots"""
         query_words = set(w.lower() for w in query.split() if len(w) > 2)
         if not query_words:
             return None
@@ -155,7 +200,6 @@ class SovereignKernel:
             desc_words = set(w.lower() for w in data.get('description', '').split() if len(w) > 2)
             all_target_words = key_words.union(desc_words)
             
-            # Calcul du score de similarité par intersection
             common = query_words.intersection(all_target_words)
             score = len(common)
             
@@ -164,11 +208,10 @@ class SovereignKernel:
                 best_match = data
 
         if max_score > 0 and best_match:
-            return f"[Mémoire Vectorielle Locale] {best_match.get('original_title')} : {best_match.get('description')}"
+            return f"[Mémoire Vectorielle V5] {best_match.get('original_title')} : {best_match.get('description')}"
         return None
 
     def autonomous_web_search(self, query):
-        """Exploration autonome de données textuelles ouvertes sur le web sans API payante"""
         try:
             encoded_q = urllib.parse.quote(query)
             url = f"https://html.duckduckgo.com/html/?q={encoded_q}"
@@ -176,7 +219,6 @@ class SovereignKernel:
             with urllib.request.urlopen(req, timeout=5) as response:
                 html_content = response.read().decode('utf-8', errors='ignore')
             
-            # Extraction basique des snippets de résultats dans le HTML
             if "result__snippet" in html_content:
                 parts = html_content.split('class="result__snippet">')
                 snippets = []
@@ -187,7 +229,7 @@ class SovereignKernel:
                 if snippets:
                     summary = " ".join(snippets[:2])
                     self.save_to_memory(query, summary)
-                    return f"[Exploration Autonome Web] Données capturées et mémorisées pour '{query}' : {summary}"
+                    return f"[Exploration Web Autonome] Données capturées : {summary}"
         except Exception as e:
             pass
         return None
@@ -198,11 +240,12 @@ class SovereignKernel:
         
         for bad in self.banned_words:
             if bad in user_input_lower:
-                reply = "[Souveraineté] Bloqué par les protocoles de sécurité."
+                reply = "[Souveraineté] Bloqué par la sécurité du noyau."
                 self.save_chat_history(self.name, reply)
                 return reply
 
         self.log_security_event(client_ip, f"Requête : {user_input[:30]}")
+        self.train_neural_matrix(user_input) # Entraînement continu sur chaque message utilisateur
 
         if user_input_lower.startswith("/peer "):
             peer_url = user_input[6:].strip()
@@ -214,7 +257,7 @@ class SovereignKernel:
         if user_input_lower.startswith("/oublie "):
             target = user_input[8:].strip()
             if self.delete_from_memory(target):
-                reply = f"[Souveraineté] '{target}' effacé."
+                reply = f"[Souveraineté] '{target}' effacé de la mémoire."
             else:
                 reply = f"[Souveraineté] Introuvable : '{target}'."
             self.save_chat_history(self.name, reply)
@@ -231,17 +274,26 @@ class SovereignKernel:
             if sep in user_input_lower:
                 parts = user_input.split(sep, 1)
                 self.save_to_memory(parts[0].strip(), parts[1].strip())
-                reply = f"[Souveraineté] Concept '{parts[0].strip()}' intégré."
+                reply = f"[Souveraineté] Concept '{parts[0].strip()}' intégré et assimilé par le réseau."
                 self.save_chat_history(self.name, reply)
                 return reply
 
-        # 1. Recherche par similarité vectorielle locale
+        # 1. Recherche par similarité vectorielle
         vector_result = self.semantic_search(user_input)
         if vector_result:
             self.save_chat_history(self.name, vector_result)
             return vector_result
 
-        # 2. Exploration autonome du web si rien en mémoire
+        # 2. Génération par Matrice Neuronale Locale (si des mots correspondent)
+        words_in_input = user_input.split()
+        if words_in_input:
+            neural_reply = self.generate_neural_text(words_in_input[0], 12)
+            if neural_reply and len(neural_reply) > len(words_in_input[0]) + 3:
+                reply = f"[Matrice Neuronale Locale] {neural_reply}"
+                self.save_chat_history(self.name, reply)
+                return reply
+
+        # 3. Exploration autonome du web
         web_result = self.autonomous_web_search(user_input)
         if web_result:
             self.save_chat_history(self.name, web_result)
@@ -249,11 +301,11 @@ class SovereignKernel:
 
         # Statut système
         if "système" in user_input_lower or "statut" in user_input_lower:
-            reply = f"Noyau : {self.name} | V4.0 Décentralisé | Nœuds pairs : {len(self.peers)} | Mémoires : {len(self.knowledge_base)}"
+            reply = f"Noyau : {self.name} | V5.0 Neuronale & Décentralisée | Matrice : {len(self.neural_matrix)} poids | Mémoires : {len(self.knowledge_base)}"
             self.save_chat_history(self.name, reply)
             return reply
 
-        reply = f"Analyse souveraine : Aucune correspondance. Enseigne-le-moi ([Concept] est [Définition]) ou laisse-moi l'explorer."
+        reply = f"Analyse souveraine V5 : Aucune correspondance directe. Enseigne-le-moi ([Concept] est [Définition]) ou laisse-moi l'explorer."
         self.save_chat_history(self.name, reply)
         return reply
 
@@ -265,7 +317,7 @@ class ChatRequest(BaseModel):
 @app.get("/", response_class=HTMLResponse)
 async def get_index(request: Request):
     client_ip = request.client.host if request.client else "unknown"
-    kernel.log_security_event(client_ip, "Accès interface")
+    kernel.log_security_event(client_ip, "Accès interface V5")
     
     history_html = ""
     for h in kernel.chat_history:
@@ -277,7 +329,7 @@ async def get_index(request: Request):
     return f"""<!DOCTYPE html>
 <html>
 <head>
-    <title>{kernel.name} - V4.0</title>
+    <title>{kernel.name} - V5.0 Neuronale</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         body {{ background-color: #050505; color: #00ff66; font-family: monospace; padding: 15px; margin: 0; }}
@@ -292,9 +344,9 @@ async def get_index(request: Request):
     </style>
 </head>
 <body>
-    <h1>🔒 {kernel.name} [4.0 DÉCENTRALISÉ & AUTONOME] 🔒</h1>
+    <h1>🔒 {kernel.name} [5.0 MATRICE NEURONALE] 🔒</h1>
     <div id="chat-box">
-        <div class="msg-core"><b>{kernel.name} ></b> Système V4.0 en ligne. Moteur vectoriel et exploration web activés.</div>
+        <div class="msg-core"><b>{kernel.name} ></b> Système V5.0 en ligne. Matrice neuronale locale activée.</div>
         {history_html}
     </div>
     <form id="chat-form" onsubmit="sendMessage(event)" class="input-container">
