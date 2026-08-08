@@ -2,16 +2,16 @@ import os
 import json
 import base64
 import urllib.request
+import urllib.parse
 from datetime import datetime
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="Genesis_Node API", version="3.0.0")
+app = FastAPI(title="Genesis_Node API", version="4.0.0")
 
-# Clé secrète maître et configuration GitHub (Optionnel mais prêt pour l'autonomie totale)
 ADMIN_SECRET_KEY = "genesis_master_2026"
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "") # Tu pourras l'ajouter dans Render si tu veux l'auto-sync GitHub
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "genesis449/genesis-node")
 
 class SovereignKernel:
@@ -21,14 +21,18 @@ class SovereignKernel:
         self.chat_history_file = "chat_history.json"
         self.security_log_file = "security_logs.json"
         self.banned_words_file = "banned_words.json"
+        self.peers_file = "peers.json"
+        
         self.chat_history = []
         self.security_logs = []
-        self.banned_words = ["spam_interdit_exemple"]
+        self.banned_words = []
+        self.peers = [] # Autres nœuds connectés pour la décentralisation
         
         self.load_memory()
         self.load_chat_history()
         self.load_security_logs()
         self.load_banned_words()
+        self.load_peers()
 
     def load_memory(self):
         if os.path.exists(self.memory_file):
@@ -84,45 +88,41 @@ class SovereignKernel:
             except:
                 pass
 
-    def save_banned_word(self, word):
-        clean = word.strip().lower()
-        if clean not in self.banned_words:
-            self.banned_words.append(clean)
-            with open(self.banned_words_file, "w", encoding="utf-8") as f:
-                json.dump(self.banned_words, f, indent=4, ensure_ascii=False)
+    def load_peers(self):
+        if os.path.exists(self.peers_file):
+            try:
+                with open(self.peers_file, "r", encoding="utf-8") as f:
+                    self.peers = json.load(f)
+            except:
+                self.peers = []
+
+    def save_peer(self, peer_url):
+        clean = peer_url.strip()
+        if clean not in self.peers:
+            self.peers.append(clean)
+            with open(self.peers_file, "w", encoding="utf-8") as f:
+                json.dump(self.peers, f, indent=4, ensure_ascii=False)
 
     def auto_sync_github(self, filepath):
-        """Pousse automatiquement les fichiers locaux modifiés vers GitHub si le Token est configuré"""
         if not GITHUB_TOKEN or not GITHUB_REPO:
             return
         try:
             with open(filepath, "rb") as f:
                 content_bytes = f.read()
             encoded_content = base64.b64encode(content_bytes).decode("utf-8")
-            
             url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{filepath}"
-            
-            # Récupérer le SHA du fichier existant si présent
             sha = ""
             req_get = urllib.request.Request(url, headers={"Authorization": f"token {GITHUB_TOKEN}", "User-Agent": "Genesis-Node"})
             try:
                 with urllib.request.urlopen(req_get) as response:
-                    data = json.loads(response.read().decode())
-                    sha = data.get("sha", "")
+                    sha = json.loads(response.read().decode()).get("sha", "")
             except:
                 pass
-
-            payload = {
-                "message": f"Auto-sync souverain : mise à jour de {filepath}",
-                "content": encoded_content,
-                "sha": sha
-            }
-            
-            req_data = json.dumps(payload).encode("utf-8")
-            req_put = urllib.request.Request(url, data=req_data, headers={"Authorization": f"token {GITHUB_TOKEN}", "User-Agent": "Genesis-Node", "Content-Type": "application/json"}, method="PUT")
+            payload = {"message": f"Sync décentralisé : {filepath}", "content": encoded_content, "sha": sha}
+            req_put = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers={"Authorization": f"token {GITHUB_TOKEN}", "User-Agent": "Genesis-Node", "Content-Type": "application/json"}, method="PUT")
             urllib.request.urlopen(req_put)
         except Exception as e:
-            print(f"Erreur sync GitHub : {e}")
+            print(f"Erreur sync : {e}")
 
     def save_to_memory(self, item, description=""):
         clean_key = item.strip().lower()
@@ -141,85 +141,119 @@ class SovereignKernel:
             return True
         return False
 
+    def semantic_search(self, query):
+        """Moteur de similarité textuelle local (RAG Maison) : calcule les correspondances de mots"""
+        query_words = set(w.lower() for w in query.split() if len(w) > 2)
+        if not query_words:
+            return None
+        
+        best_match = None
+        max_score = 0
+        
+        for key, data in self.knowledge_base.items():
+            key_words = set(w.lower() for w in key.split() if len(w) > 2)
+            desc_words = set(w.lower() for w in data.get('description', '').split() if len(w) > 2)
+            all_target_words = key_words.union(desc_words)
+            
+            # Calcul du score de similarité par intersection
+            common = query_words.intersection(all_target_words)
+            score = len(common)
+            
+            if score > max_score:
+                max_score = score
+                best_match = data
+
+        if max_score > 0 and best_match:
+            return f"[Mémoire Vectorielle Locale] {best_match.get('original_title')} : {best_match.get('description')}"
+        return None
+
+    def autonomous_web_search(self, query):
+        """Exploration autonome de données textuelles ouvertes sur le web sans API payante"""
+        try:
+            encoded_q = urllib.parse.quote(query)
+            url = f"https://html.duckduckgo.com/html/?q={encoded_q}"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                html_content = response.read().decode('utf-8', errors='ignore')
+            
+            # Extraction basique des snippets de résultats dans le HTML
+            if "result__snippet" in html_content:
+                parts = html_content.split('class="result__snippet">')
+                snippets = []
+                for p in parts[1:4]:
+                    snippet = p.split('</a>')[0].split('</')[0].replace('<b>', '').replace('</b>', '').strip()
+                    if snippet and len(snippet) > 20:
+                        snippets.append(snippet)
+                if snippets:
+                    summary = " ".join(snippets[:2])
+                    self.save_to_memory(query, summary)
+                    return f"[Exploration Autonome Web] Données capturées et mémorisées pour '{query}' : {summary}"
+        except Exception as e:
+            pass
+        return None
+
     def chat_response(self, user_input, client_ip="unknown"):
         self.save_chat_history("Toi", user_input)
         user_input_lower = user_input.lower().strip()
         
-        # Filtrage de sécurité local (Mots bannis)
         for bad in self.banned_words:
             if bad in user_input_lower:
-                reply = "[Souveraineté] Requête rejetée : Contenu restreint par les protocoles de sécurité du noyau."
+                reply = "[Souveraineté] Bloqué par les protocoles de sécurité."
                 self.save_chat_history(self.name, reply)
-                self.log_security_event(client_ip, f"Tentative bloquée (mot banni : {bad})")
                 return reply
 
-        self.log_security_event(client_ip, f"Message reçu : {user_input[:30]}")
+        self.log_security_event(client_ip, f"Requête : {user_input[:30]}")
 
-        # Commandes admin / filtres
-        if user_input_lower.startswith("/ban "):
-            word_to_ban = user_input[5:].strip()
-            self.save_banned_word(word_to_ban)
-            reply = f"[Sécurité] Le terme '{word_to_ban}' est désormais bloqué par le noyau."
+        if user_input_lower.startswith("/peer "):
+            peer_url = user_input[6:].strip()
+            self.save_peer(peer_url)
+            reply = f"[Réseau Décentralisé] Nœud partenaire enregistré : {peer_url}"
             self.save_chat_history(self.name, reply)
             return reply
 
         if user_input_lower.startswith("/oublie "):
             target = user_input[8:].strip()
             if self.delete_from_memory(target):
-                reply = f"[Souveraineté] Le concept '{target}' a été totalement effacé de ma mémoire."
+                reply = f"[Souveraineté] '{target}' effacé."
             else:
-                reply = f"[Souveraineté] Introuvable en mémoire : '{target}'."
+                reply = f"[Souveraineté] Introuvable : '{target}'."
             self.save_chat_history(self.name, reply)
             return reply
 
         if user_input_lower == "/memoire":
             keys = [data.get('original_title') for data in self.knowledge_base.values()]
-            reply = f"[Mémoire Souveraine] Concepts enregistrés ({len(keys)}) : {', '.join(keys) if keys else 'Aucun'}"
+            reply = f"[Mémoire Souveraine ({len(keys)})] : {', '.join(keys) if keys else 'Vide'}"
             self.save_chat_history(self.name, reply)
             return reply
 
-        # Apprentissage sémantique universel (Multilingue compatible : "est", "is", "c'est")
-        separator = None
+        # Apprentissage sémantique universel
         for sep in [" est ", " is ", " c'est "]:
             if sep in user_input_lower:
-                separator = sep
-                break
-
-        if separator:
-            parts = user_input.split(separator, 1)
-            concept = parts[0].strip()
-            definition = parts[1].strip()
-            self.save_to_memory(concept, definition)
-            reply = f"[Souveraineté] Concept '{concept}' intégré avec succès dans ma mémoire."
-            self.save_chat_history(self.name, reply)
-            return reply
-
-        # Recherche directe dans la mémoire
-        for key, data in self.knowledge_base.items():
-            if key in user_input_lower or user_input_lower in key:
-                reply = f"[Mémoire Interne] {data.get('original_title')} : {data.get('description')}"
+                parts = user_input.split(sep, 1)
+                self.save_to_memory(parts[0].strip(), parts[1].strip())
+                reply = f"[Souveraineté] Concept '{parts[0].strip()}' intégré."
                 self.save_chat_history(self.name, reply)
                 return reply
 
-        # Cerveau d'association textuelle locale
-        matched_sentences = []
-        words = user_input_lower.split()
-        for key, data in self.knowledge_base.items():
-            if any(w in key for w in words if len(w) > 3):
-                matched_sentences.append(f"- {data.get('original_title')} : {data.get('description')}")
-        
-        if matched_sentences:
-            reply = f"[Association Souveraine] Éléments croisés dans ma base :\n" + "\n".join(matched_sentences[:3])
-            self.save_chat_history(self.name, reply)
-            return reply
+        # 1. Recherche par similarité vectorielle locale
+        vector_result = self.semantic_search(user_input)
+        if vector_result:
+            self.save_chat_history(self.name, vector_result)
+            return vector_result
 
-        # Commandes système
+        # 2. Exploration autonome du web si rien en mémoire
+        web_result = self.autonomous_web_search(user_input)
+        if web_result:
+            self.save_chat_history(self.name, web_result)
+            return web_result
+
+        # Statut système
         if "système" in user_input_lower or "statut" in user_input_lower:
-            reply = f"Noyau : {self.name} | Version : 3.0 Blindé | Sync GitHub : {'Actif' if GITHUB_TOKEN else 'Local pur'} | Nœuds : {len(self.knowledge_base)}"
+            reply = f"Noyau : {self.name} | V4.0 Décentralisé | Nœuds pairs : {len(self.peers)} | Mémoires : {len(self.knowledge_base)}"
             self.save_chat_history(self.name, reply)
             return reply
 
-        reply = f"Analyse souveraine : Aucune correspondance directe. Enseigne-le-moi ([Concept] est [Définition]) ou tape /memoire."
+        reply = f"Analyse souveraine : Aucune correspondance. Enseigne-le-moi ([Concept] est [Définition]) ou laisse-moi l'explorer."
         self.save_chat_history(self.name, reply)
         return reply
 
@@ -231,7 +265,7 @@ class ChatRequest(BaseModel):
 @app.get("/", response_class=HTMLResponse)
 async def get_index(request: Request):
     client_ip = request.client.host if request.client else "unknown"
-    kernel.log_security_event(client_ip, "Accès interface Web")
+    kernel.log_security_event(client_ip, "Accès interface")
     
     history_html = ""
     for h in kernel.chat_history:
@@ -243,7 +277,7 @@ async def get_index(request: Request):
     return f"""<!DOCTYPE html>
 <html>
 <head>
-    <title>{kernel.name} - Version 3.0</title>
+    <title>{kernel.name} - V4.0</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         body {{ background-color: #050505; color: #00ff66; font-family: monospace; padding: 15px; margin: 0; }}
@@ -258,16 +292,16 @@ async def get_index(request: Request):
     </style>
 </head>
 <body>
-    <h1>🔒 {kernel.name} [3.0 SOUVERAIN BLINDÉ] 🔒</h1>
+    <h1>🔒 {kernel.name} [4.0 DÉCENTRALISÉ & AUTONOME] 🔒</h1>
     <div id="chat-box">
-        <div class="msg-core"><b>{kernel.name} ></b> Système initialisé. Commandes: /memoire | /oublie | /ban</div>
+        <div class="msg-core"><b>{kernel.name} ></b> Système V4.0 en ligne. Moteur vectoriel et exploration web activés.</div>
         {history_html}
     </div>
     <form id="chat-form" onsubmit="sendMessage(event)" class="input-container">
-        <input type="text" id="user-input" placeholder="Discuter, enseigner ou commander..." autocomplete="off">
+        <input type="text" id="user-input" placeholder="Question, concept ou commande..." autocomplete="off">
         <button type="submit">Envoyer</button>
     </form>
-    <div class="admin-bar">Commandes : /memoire | /oublie [nom] | /ban [mot]</div>
+    <div class="admin-bar">Commandes : /memoire | /oublie [nom] | /peer [url]</div>
     <script>
         const box = document.getElementById('chat-box');
         box.scrollTop = box.scrollHeight;
