@@ -1,14 +1,18 @@
 import os
 import json
+import base64
+import urllib.request
 from datetime import datetime
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="Genesis_Node API", version="2.0.0")
+app = FastAPI(title="Genesis_Node API", version="3.0.0")
 
-# Clé secrète maître pour les actions d'administration (tu pourras la changer)
+# Clé secrète maître et configuration GitHub (Optionnel mais prêt pour l'autonomie totale)
 ADMIN_SECRET_KEY = "genesis_master_2026"
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "") # Tu pourras l'ajouter dans Render si tu veux l'auto-sync GitHub
+GITHUB_REPO = os.getenv("GITHUB_REPO", "genesis449/genesis-node")
 
 class SovereignKernel:
     def __init__(self, name="Genesis_Node_Sovereign"):
@@ -16,11 +20,15 @@ class SovereignKernel:
         self.memory_file = "memory.json"
         self.chat_history_file = "chat_history.json"
         self.security_log_file = "security_logs.json"
+        self.banned_words_file = "banned_words.json"
         self.chat_history = []
         self.security_logs = []
+        self.banned_words = ["spam_interdit_exemple"]
+        
         self.load_memory()
         self.load_chat_history()
         self.load_security_logs()
+        self.load_banned_words()
 
     def load_memory(self):
         if os.path.exists(self.memory_file):
@@ -35,6 +43,7 @@ class SovereignKernel:
     def save_memory_to_disk(self):
         with open(self.memory_file, "w", encoding="utf-8") as f:
             json.dump(self.knowledge_base, f, indent=4, ensure_ascii=False)
+        self.auto_sync_github(self.memory_file)
 
     def load_chat_history(self):
         if os.path.exists(self.chat_history_file):
@@ -67,6 +76,54 @@ class SovereignKernel:
         with open(self.security_log_file, "w", encoding="utf-8") as f:
             json.dump(self.security_logs, f, indent=4, ensure_ascii=False)
 
+    def load_banned_words(self):
+        if os.path.exists(self.banned_words_file):
+            try:
+                with open(self.banned_words_file, "r", encoding="utf-8") as f:
+                    self.banned_words = json.load(f)
+            except:
+                pass
+
+    def save_banned_word(self, word):
+        clean = word.strip().lower()
+        if clean not in self.banned_words:
+            self.banned_words.append(clean)
+            with open(self.banned_words_file, "w", encoding="utf-8") as f:
+                json.dump(self.banned_words, f, indent=4, ensure_ascii=False)
+
+    def auto_sync_github(self, filepath):
+        """Pousse automatiquement les fichiers locaux modifiés vers GitHub si le Token est configuré"""
+        if not GITHUB_TOKEN or not GITHUB_REPO:
+            return
+        try:
+            with open(filepath, "rb") as f:
+                content_bytes = f.read()
+            encoded_content = base64.b64encode(content_bytes).decode("utf-8")
+            
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{filepath}"
+            
+            # Récupérer le SHA du fichier existant si présent
+            sha = ""
+            req_get = urllib.request.Request(url, headers={"Authorization": f"token {GITHUB_TOKEN}", "User-Agent": "Genesis-Node"})
+            try:
+                with urllib.request.urlopen(req_get) as response:
+                    data = json.loads(response.read().decode())
+                    sha = data.get("sha", "")
+            except:
+                pass
+
+            payload = {
+                "message": f"Auto-sync souverain : mise à jour de {filepath}",
+                "content": encoded_content,
+                "sha": sha
+            }
+            
+            req_data = json.dumps(payload).encode("utf-8")
+            req_put = urllib.request.Request(url, data=req_data, headers={"Authorization": f"token {GITHUB_TOKEN}", "User-Agent": "Genesis-Node", "Content-Type": "application/json"}, method="PUT")
+            urllib.request.urlopen(req_put)
+        except Exception as e:
+            print(f"Erreur sync GitHub : {e}")
+
     def save_to_memory(self, item, description=""):
         clean_key = item.strip().lower()
         self.knowledge_base[clean_key] = {
@@ -88,10 +145,24 @@ class SovereignKernel:
         self.save_chat_history("Toi", user_input)
         user_input_lower = user_input.lower().strip()
         
-        # Journalisation de l'activité pour la sécurité
+        # Filtrage de sécurité local (Mots bannis)
+        for bad in self.banned_words:
+            if bad in user_input_lower:
+                reply = "[Souveraineté] Requête rejetée : Contenu restreint par les protocoles de sécurité du noyau."
+                self.save_chat_history(self.name, reply)
+                self.log_security_event(client_ip, f"Tentative bloquée (mot banni : {bad})")
+                return reply
+
         self.log_security_event(client_ip, f"Message reçu : {user_input[:30]}")
 
-        # Commandes d'administration locales intégrées au chat
+        # Commandes admin / filtres
+        if user_input_lower.startswith("/ban "):
+            word_to_ban = user_input[5:].strip()
+            self.save_banned_word(word_to_ban)
+            reply = f"[Sécurité] Le terme '{word_to_ban}' est désormais bloqué par le noyau."
+            self.save_chat_history(self.name, reply)
+            return reply
+
         if user_input_lower.startswith("/oublie "):
             target = user_input[8:].strip()
             if self.delete_from_memory(target):
@@ -107,9 +178,15 @@ class SovereignKernel:
             self.save_chat_history(self.name, reply)
             return reply
 
-        # Apprentissage sémantique ("X est Y")
-        if " est " in user_input_lower:
-            parts = user_input.split(" est ", 1)
+        # Apprentissage sémantique universel (Multilingue compatible : "est", "is", "c'est")
+        separator = None
+        for sep in [" est ", " is ", " c'est "]:
+            if sep in user_input_lower:
+                separator = sep
+                break
+
+        if separator:
+            parts = user_input.split(separator, 1)
             concept = parts[0].strip()
             definition = parts[1].strip()
             self.save_to_memory(concept, definition)
@@ -124,7 +201,7 @@ class SovereignKernel:
                 self.save_chat_history(self.name, reply)
                 return reply
 
-        # Cerveau d'association textuelle locale (Recherche par mots croisés)
+        # Cerveau d'association textuelle locale
         matched_sentences = []
         words = user_input_lower.split()
         for key, data in self.knowledge_base.items():
@@ -132,17 +209,17 @@ class SovereignKernel:
                 matched_sentences.append(f"- {data.get('original_title')} : {data.get('description')}")
         
         if matched_sentences:
-            reply = f"[Association Souveraine] J'ai croisé ces éléments dans ma base :\n" + "\n".join(matched_sentences[:3])
+            reply = f"[Association Souveraine] Éléments croisés dans ma base :\n" + "\n".join(matched_sentences[:3])
             self.save_chat_history(self.name, reply)
             return reply
 
-        # Commandes système de base
+        # Commandes système
         if "système" in user_input_lower or "statut" in user_input_lower:
-            reply = f"Noyau : {self.name} | Sécurité : Blindé (Local) | RAM : 6 Go | Nœuds mémoriels : {len(self.knowledge_base)}"
+            reply = f"Noyau : {self.name} | Version : 3.0 Blindé | Sync GitHub : {'Actif' if GITHUB_TOKEN else 'Local pur'} | Nœuds : {len(self.knowledge_base)}"
             self.save_chat_history(self.name, reply)
             return reply
 
-        reply = f"Analyse souveraine de '{user_input}' : Aucune correspondance directe. Enseigne-le-moi en écrivant '[Concept] est [Définition]' ou tape /memoire."
+        reply = f"Analyse souveraine : Aucune correspondance directe. Enseigne-le-moi ([Concept] est [Définition]) ou tape /memoire."
         self.save_chat_history(self.name, reply)
         return reply
 
@@ -166,7 +243,7 @@ async def get_index(request: Request):
     return f"""<!DOCTYPE html>
 <html>
 <head>
-    <title>{kernel.name} - Souverain</title>
+    <title>{kernel.name} - Version 3.0</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         body {{ background-color: #050505; color: #00ff66; font-family: monospace; padding: 15px; margin: 0; }}
@@ -181,16 +258,16 @@ async def get_index(request: Request):
     </style>
 </head>
 <body>
-    <h1>🔒 {kernel.name} [100% SOUVERAIN] 🔒</h1>
+    <h1>🔒 {kernel.name} [3.0 SOUVERAIN BLINDÉ] 🔒</h1>
     <div id="chat-box">
-        <div class="msg-core"><b>{kernel.name} ></b> Système initialisé. Forteresse active. Tape /memoire ou enseigne.</div>
+        <div class="msg-core"><b>{kernel.name} ></b> Système initialisé. Commandes: /memoire | /oublie | /ban</div>
         {history_html}
     </div>
     <form id="chat-form" onsubmit="sendMessage(event)" class="input-container">
-        <input type="text" id="user-input" placeholder="Message, /memoire ou [Concept] est [Définition]..." autocomplete="off">
+        <input type="text" id="user-input" placeholder="Discuter, enseigner ou commander..." autocomplete="off">
         <button type="submit">Envoyer</button>
     </form>
-    <div class="admin-bar">Commandes utiles : /memoire | /oublie [concept]</div>
+    <div class="admin-bar">Commandes : /memoire | /oublie [nom] | /ban [mot]</div>
     <script>
         const box = document.getElementById('chat-box');
         box.scrollTop = box.scrollHeight;
@@ -226,7 +303,6 @@ async def chat_endpoint(payload: ChatRequest, request: Request):
     reply = kernel.chat_response(payload.message, client_ip)
     return {"reply": reply}
 
-# Routes Administrateur Securisées (Pour exporter ou voir les logs de ton côté)
 @app.get(f"/admin/{ADMIN_SECRET_KEY}/logs")
 async def get_security_logs():
     return {"total_logs": len(kernel.security_logs), "logs": kernel.security_logs[-50:]}
