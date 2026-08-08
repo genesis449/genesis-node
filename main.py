@@ -12,6 +12,7 @@ class SovereignKernel:
         self.name = name
         self.memory_file = "memory.json"
         self.chat_history_file = "chat_history.json"
+        self.chat_history = []
         self.load_memory()
         self.load_chat_history()
 
