@@ -1,6 +1,8 @@
 import math
 import random
 import time
+import json
+import os
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -128,3 +130,47 @@ async def get_ghost_interface(request: Request):
 async def pulse_endpoint(payload: GhostRequest):
     response_text = ghost_engine.synthesize_response(payload.message)
     return {"response": response_text}
+
+
+# ==========================================
+# NOUVELLES BRIQUES AJOUTÉES EN SELS (V2)
+# ==========================================
+
+class PersistentMemoryCore:
+    def __init__(self, memory_file="long_term_memory.json"):
+        self.memory_file = memory_file
+        if not os.path.exists(self.memory_file):
+            with open(self.memory_file, "w", encoding="utf-8") as f:
+                json.dump({"contexte_utilisateur": {}, "concepts_appris": []}, f)
+
+    def sauvegarder_concept(self, concept, description):
+        with open(self.memory_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        data["concepts_appris"].append({"concept": concept, "description": description})
+        with open(self.memory_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+        return f"Concept '{concept}' mémorisé de manière permanente."
+
+class StandardLogicEngine:
+    def __init__(self):
+        self.memory_module = PersistentMemoryCore()
+
+    def analyser_requete_standard(self, texte):
+        texte_propre = texte.lower().strip()
+        if "apprends ça" in texte_propre:
+            return self.memory_module.sauvegarder_concept("Nouveau Concept", texte_propre)
+        return "Analyse standard terminée. Prêt à exécuter la tâche."
+
+standard_engine = StandardLogicEngine()
+
+class RequeteStandard(BaseModel):
+    message: str
+
+@app.post("/v2/interaction")
+async def interaction_utilisateur_neutre(req: RequeteStandard):
+    reponse = standard_engine.analyser_requete_standard(req.message)
+    return {
+        "statut": "succès",
+        "canal": "v2_standard",
+        "donnees": reponse
+    }
