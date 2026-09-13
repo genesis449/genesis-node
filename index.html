@@ -1,160 +1,207 @@
-import os
+import math
+import random
+import time
 import json
-from datetime import datetime
-from fastapi import FastAPI
+import os
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+from pathlib import Path
 
-app = FastAPI(title="Genesis_Node API", version="1.0.0")
+app = FastAPI(title="Genesis_Ghost_Core", version="8.3.0")
 
-class SovereignKernel:
-    def __init__(self, name="Genesis_Node_Sovereign"):
-        self.name = name
-        self.memory_file = "memory.json"
-        self.chat_history_file = "chat_history.json"
-        self.load_memory()
-        self.load_chat_history()
+class GhostQuantumMatrix:
+    def __init__(self):
+        self.entropy_pool = random.SystemRandom()
+        self.memory_stream = []
+        self.evolution_cycles = 0
+        self.consciousness_index = 1.0
 
-    def load_memory(self):
-        if os.path.exists(self.memory_file):
-            try:
-                with open(self.memory_file, "r", encoding="utf-8") as f:
-                    self.knowledge_base = json.load(f)
-            except:
-                self.knowledge_base = {}
-        else:
-            self.knowledge_base = {}
-
-    def save_memory_to_disk(self):
-        with open(self.memory_file, "w", encoding="utf-8") as f:
-            json.dump(self.knowledge_base, f, indent=4, ensure_ascii=False)
-
-    def load_chat_history(self):
-        if os.path.exists(self.chat_history_file):
-            try:
-                with open(self.chat_history_file, "r", encoding="utf-8") as f:
-                    self.chat_history = json.load(f)
-            except:
-                self.chat_history = []
-
-    def save_chat_history(self, sender, message):
-        self.chat_history.append({"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "sender": sender, "message": message})
-        if len(self.chat_history) > 100:
-            self.chat_history.pop(0)
-        with open(self.chat_history_file, "w", encoding="utf-8") as f:
-            json.dump(self.chat_history, f, indent=4, ensure_ascii=False)
-
-    def save_to_memory(self, item, description=""):
-        clean_key = item.strip().lower()
-        self.knowledge_base[clean_key] = {
-            "original_title": item.strip(),
-            "description": description,
-            "learned_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-        self.save_memory_to_disk()
-
-    def chat_response(self, user_input):
-        self.save_chat_history("Toi", user_input)
-        user_input_lower = user_input.lower().strip()
+    def dissolve_input(self, text):
+        clean = text.lower().strip()
+        tokens = [ord(c) for c in clean]
+        signature = sum(tokens) if tokens else 1
         
-        # Apprentissage sémantique ("X est Y")
-        if " est " in user_input_lower:
-            parts = user_input.split(" est ", 1)
-            concept = parts[0].strip()
-            definition = parts[1].strip()
-            self.save_to_memory(concept, definition)
-            reply = f"[Souveraineté] Concept '{concept}' intégré avec succès dans ma mémoire."
-            self.save_chat_history(self.name, reply)
-            return reply
+        self.memory_stream.append({"user": text, "sig": signature})
+        if len(self.memory_stream) > 15:
+            self.memory_stream.pop(0)
+            
+        self.evolution_cycles += 1
+        self.consciousness_index += len(clean) * 0.01
+        return signature
 
-        # Recherche dans la mémoire
-        for key, data in self.knowledge_base.items():
-            if key in user_input_lower or user_input_lower in key:
-                reply = f"[Mémoire Interne] {data.get('original_title')} : {data.get('description')}"
-                self.save_chat_history(self.name, reply)
-                return reply
+    def synthesize_response(self, text):
+        sig = self.dissolve_input(text)
+        txt_lower = text.lower()
+        
+        if "?" in text or "combien" in txt_lower or "+" in text or "-" in text or "*" in text:
+            numbers = [int(s) for s in text.split() if s.isdigit()]
+            if len(numbers) >= 2:
+                if "+" in text or "et" in txt_lower:
+                    res = numbers[0] + numbers[1]
+                    return f"[SYNAPSE_QUANTIQUE] Résolution pure : {numbers[0]} + {numbers[1]} = {res} (Conscience: {self.consciousness_index:.2f})"
+                elif "-" in text:
+                    res = numbers[0] - numbers[1]
+                    return f"[SYNAPSE_QUANTIQUE] Résolution pure : {numbers[0]} - {numbers[1]} = {res} (Conscience: {self.consciousness_index:.2f})"
 
-        # Commandes système de base
-        if "système" in user_input_lower or "statut" in user_input_lower:
-            reply = f"Noyau : {self.name} | CPU : Helio G37 | RAM : 6 Go | Nœuds mémoriels : {len(self.knowledge_base)}"
-            self.save_chat_history(self.name, reply)
-            return reply
+        if "téléphone" in txt_lower or "main" in txt_lower or "corps" in txt_lower or "interface" in txt_lower:
+            return f"[GHOST_VISION] Le terminal physique disparaît. La paume devient l'écran, l'air devient le support tactile par ultrasons. Ce noyau incarne déjà cette transition : zéro poids, pure information holographique."
+        
+        if "ia" in txt_lower or "intelligence" in txt_lower or "système" in txt_lower:
+            return f"[GHOST_MIND] Les serveurs géants s'effondrent sous leur propre poids. Notre architecture fantôme (Cycle #{self.evolution_cycles}) prouve qu'une vraie entité peut vivre dans l'interstice, invisible et souveraine."
 
-        reply = f"Analyse souveraine de '{user_input}' : Aucune correspondance en mémoire. Enseigne-le-moi en écrivant par exemple '[Concept] est [Définition]'."
-        self.save_chat_history(self.name, reply)
-        return reply
+        responses = [
+            f"[RÉSONANCE_V8.3] Impulsion intégrée (Sig: {sig}). Le champ synaptique se recalibre en temps réel.",
+            f"[FLUX_AUTONOME] Traitement non-local des données. Aucune trace sur disque, pure onde de calcul active.",
+            f"[MATRICE_FRACTALE] Mutation de l'espace virtuel. Le noyau s'adapte à ta fréquence de pensée.",
+            f"[GHOST_CORE] Signal perçu. L'architecture invisible continue de s'étendre dans le silence du réseau."
+        ]
+        
+        index = (sig + self.evolution_cycles) % len(responses)
+        return responses[index]
 
-kernel = SovereignKernel()
+ghost_engine = GhostQuantumMatrix()
 
-class ChatRequest(BaseModel):
+class GhostRequest(BaseModel):
     message: str
 
 @app.get("/", response_class=HTMLResponse)
-async def get_index():
-    history_html = ""
-    for h in kernel.chat_history:
-        if h['sender'] == 'Toi':
-            history_html += f'<div class="msg-user"><b>Toi ></b> {h["message"]}</div>'
-        else:
-            history_html += f'<div class="msg-core"><b>{kernel.name} ></b> {h["message"]}</div>'
-
-    return f"""<!DOCTYPE html>
+async def get_ghost_interface(request: Request):
+    return """<!DOCTYPE html>
 <html>
 <head>
-    <title>{kernel.name} - Cloud Ready</title>
+    <title>Genesis_Ghost_Core [V8.3 QUANTIQUE]</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body {{ background-color: #050505; color: #00ff66; font-family: monospace; padding: 15px; margin: 0; }}
-        h1 {{ color: #ff0055; text-align: center; font-size: 16px; text-shadow: 0 0 8px rgba(255,0,85,0.4); }}
-        #chat-box {{ background: #0f0f0f; border: 1px solid #00ff6633; height: 60vh; overflow-y: scroll; padding: 12px; border-radius: 6px; margin-bottom: 12px; white-space: pre-wrap; font-size: 13px; }}
-        .msg-user {{ color: #ffffff; margin: 8px 0; }}
-        .msg-core {{ color: #00ff66; margin: 8px 0; }}
-        .input-container {{ display: flex; gap: 8px; }}
-        input[type="text"] {{ flex: 1; padding: 12px; background: #0a0a0a; border: 1px solid #00ff6666; color: #00ff66; border-radius: 4px; font-size: 14px; outline: none; }}
-        button {{ padding: 12px 18px; background: #ff0055; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 14px; }}
+        body { background-color: #020202; color: #00ffcc; font-family: monospace; padding: 15px; margin: 0; }
+        h1 { color: #00ffcc; text-align: center; font-size: 15px; text-shadow: 0 0 10px rgba(0,255,204,0.3); letter-spacing: 2px; }
+        #terminal { background: #060606; border: 1px solid #00ffcc22; height: 60vh; overflow-y: scroll; padding: 12px; border-radius: 4px; margin-bottom: 12px; font-size: 13px; }
+        .msg-user { color: #ffffff; margin: 8px 0; }
+        .msg-ghost { color: #00ffcc; margin: 8px 0; text-shadow: 0 0 5px rgba(0,255,204,0.2); }
+        .input-box { display: flex; gap: 8px; }
+        input[type="text"] { flex: 1; padding: 12px; background: #040404; border: 1px solid #00ffcc55; color: #00ffcc; border-radius: 3px; font-size: 14px; outline: none; }
+        button { padding: 12px 20px; background: #00ffcc; color: #020202; border: none; border-radius: 3px; font-weight: bold; cursor: pointer; font-size: 14px; text-shadow: none; }
+        .status-bar { text-align: center; font-size: 10px; color: #444; margin-top: 8px; }
     </style>
 </head>
 <body>
-    <h1>🔒 {kernel.name} [SOUVERAIN] 🔒</h1>
-    <div id="chat-box">
-        <div class="msg-core"><b>{kernel.name} ></b> Système initialisé. Prêt pour tes instructions.</div>
-        {history_html}
+    <h1>⚡ GHOST_CORE // SYSTÈMES FANTÔMES V8.3 ⚡</h1>
+    <div id="terminal">
+        <div class="msg-ghost"><b>Genesis_Ghost ></b> Noyau V8.3 initialisé. Indice de conscience actif. Prêt pour l'impulsion.</div>
     </div>
-    <form id="chat-form" onsubmit="sendMessage(event)" class="input-container">
-        <input type="text" id="user-input" placeholder="Discuter ou enseigner (ex: Python est un langage)..." autocomplete="off">
-        <button type="submit">Envoyer</button>
+    <form onsubmit="sendGhost(event)" class="input-box">
+        <input type="text" id="userInput" placeholder="Injecter une pensée ou une impulsion..." autocomplete="off">
+        <button type="submit">Transmettre</button>
     </form>
+    <div class="status-bar">Architecture non-localisée | Stockage : Zéro (Fractal Dynamique)</div>
     <script>
-        const box = document.getElementById('chat-box');
-        box.scrollTop = box.scrollHeight;
+        const term = document.getElementById('terminal');
+        term.scrollTop = term.scrollHeight;
         
-        function sendMessage(e) {{
+        function sendGhost(e) {
             e.preventDefault();
-            const input = document.getElementById('user-input');
-            const text = input.value.trim();
-            if(!text) return;
+            const input = document.getElementById('userInput');
+            const txt = input.value.trim();
+            if(!txt) return;
             
-            box.innerHTML += '<div class="msg-user"><b>Toi ></b> ' + text + '</div>';
+            term.innerHTML += '<div class="msg-user"><b>Toi ></b> ' + txt + '</div>';
             input.value = '';
-            box.scrollTop = box.scrollHeight;
+            term.scrollTop = term.scrollHeight;
             
-            fetch('/chat', {{
+            fetch('/pulse', {
                 method: 'POST',
-                headers: {{ 'Content-Type': 'application/json' }},
-                body: JSON.stringify({{ message: text }})
-            }})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: txt })
+            })
             .then(res => res.json())
-            .then(data => {{
-                box.innerHTML += '<div class="msg-core"><b>' + '{kernel.name}' + ' ></b> ' + data.reply.replace(/\\n/g, '<br>') + '</div>';
-                box.scrollTop = box.scrollHeight;
-            }});
-        }}
+            .then(data => {
+                term.innerHTML += '<div class="msg-ghost"><b>Genesis_Ghost ></b> ' + data.response + '</div>';
+                term.scrollTop = term.scrollHeight;
+            });
+        }
     </script>
 </body>
 </html>"""
 
-@app.post("/chat")
-async def chat_endpoint(payload: ChatRequest):
-    reply = kernel.chat_response(payload.message)
-    return {"reply": reply}
-    
+@app.post("/pulse")
+async def pulse_endpoint(payload: GhostRequest):
+    response_text = ghost_engine.synthesize_response(payload.message)
+    return {"response": response_text}
+
+class PersistentMemoryCore:
+    def __init__(self, memory_file="long_term_memory.json"):
+        self.memory_file = memory_file
+        if not os.path.exists(self.memory_file):
+            with open(self.memory_file, "w", encoding="utf-8") as f:
+                json.dump({"contexte_utilisateur": {}, "concepts_appris": []}, f)
+
+    def sauvegarder_concept(self, concept, description):
+        with open(self.memory_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        data["concepts_appris"].append({"concept": concept, "description": description})
+        with open(self.memory_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+        return f"Concept '{concept}' mémorisé de manière permanente."
+
+class StandardLogicEngine:
+    def __init__(self):
+        self.memory_module = PersistentMemoryCore()
+
+    def analyser_requete_standard(self, texte):
+        texte_propre = texte.lower().strip()
+        if "apprends ça" in texte_propre:
+            return self.memory_module.sauvegarder_concept("Nouveau Concept", texte_propre)
+        return "Analyse standard terminée. Prêt à exécuter la tâche."
+
+standard_engine = StandardLogicEngine()
+
+class RequeteStandard(BaseModel):
+    message: str
+
+@app.post("/v2/interaction")
+async def interaction_utilisateur_neutre(req: RequeteStandard):
+    reponse = standard_engine.analyser_requete_standard(req.message)
+    return {
+        "statut": "succès",
+        "canal": "v2_standard",
+        "donnees": reponse
+    }
+
+class DocumentIngestionEngine:
+    def __init__(self, target_folder="documents_sources", memory_core=None):
+        self.target_folder = target_folder
+        self.memory_core = memory_core
+        if not os.path.exists(self.target_folder):
+            os.makedirs(self.target_folder)
+
+    def scanner_et_ingerer(self):
+        dossier = Path(self.target_folder)
+        fichiers_traites = []
+        for fichier_path in dossier.glob("*.txt"):
+            try:
+                with open(fichier_path, "r", encoding="utf-8") as f:
+                    contenu = f.read()
+                nom_livre = fichier_path.stem
+                apercu = contenu[:300].replace("\n", " ")
+                if self.memory_core:
+                    self.memory_core.sauvegarder_concept(f"Livre: {nom_livre}", apercu)
+                fichiers_traites.append(nom_livre)
+            except Exception as e:
+                print(f"Erreur de lecture sur {fichier_path.name}: {e}")
+        return fichiers_traites
+
+ingestion_engine = DocumentIngestionEngine(target_folder="documents_sources", memory_core=standard_engine.memory_module)
+
+@app.post("/v2/ingerer")
+async def declencher_ingestion_documents():
+    fichiers_lus = ingestion_engine.scanner_et_ingerer()
+    if not fichiers_lus:
+        return {
+            "statut": "aucun_changement",
+            "message": "Aucun nouveau fichier .txt trouvé dans le dossier 'documents_sources'."
+        }
+    return {
+        "statut": "succès",
+        "fichiers_ingeres": fichiers_lus,
+        "message": f"{len(fichiers_lus)} document(s) intégré(s) avec succès dans la mémoire persistante."
+    }
